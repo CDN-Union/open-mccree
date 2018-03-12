@@ -238,25 +238,31 @@ class MSEController {
   pause() {
     this.mediaElement.pause();
   }
+
   destroy() {
     if (!this.mediaSource || !this.asourceBuffer || !this.vsourceBuffer) {
       return;
     }
+    this.removeSourceBuffer();
+    this.detachMediaElement();
+    this.asourceBuffer = null;
+    this.vsourceBuffer = null;
+    this.mediaSource = null;
+    this._lastClearTime = 0;
+    this.seekables = [];
+  }
+
+  removeSourceBuffer () {
+    this._initAppanded = false;
     this.mediaElement.pause();
     URL.revokeObjectURL(this.mediaElement.src);
     this.asourceBuffer && this.asourceBuffer.removeEventListener('error', this.onError.bind(this));
     this.vsourceBuffer && this.vsourceBuffer.removeEventListener('error', this.onError.bind(this));
     this.vsourceBuffer && this.vsourceBuffer.removeEventListener('updateend', this.checkState.bind(this));
-    if (this.mediaSource && this.mediaSource.sourceBuffers > 1) {
+    if (this.mediaSource && this.mediaSource.sourceBuffers.length > 1) {
       this.mediaSource.removeSourceBuffer(this.asourceBuffer);
       this.mediaSource.removeSourceBuffer(this.vsourceBuffer);
     }
-    this.detachMediaElement();
-    that.asourceBuffer = null;
-    that.vsourceBuffer = null;
-    that.mediaSource = null;
-    this._lastClearTime = 0;
-    that.seekables = [];
   }
 
   onError(error) {

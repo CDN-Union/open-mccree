@@ -46,10 +46,10 @@ var MSEController = function () {
   }, {
     key: 'checkState',
     value: function checkState() {
-      if (this.config.autoReload > 5e3 && this.mediaElement && this.mediaElement.readyState < 3 && new Date().getTime() - this.startTime - this.mediaElement.currentTime * 1e3 > this.config.autoReload) {
-        var _that = this;
+      if (this.config.autoReload > 15e3 && this.mediaElement && this.mediaElement.readyState < 3 && new Date().getTime() - this.startTime - this.mediaElement.currentTime * 1e3 > this.config.autoReload) {
+        var that = this;
         this.mccree.reload().then(function () {
-          _that.startTime = undefined;
+          that.startTime = undefined;
         });
       }
       if (this.seekables[this.seekables.length - 1] > this.lastSeek && this.mediaElement && this.mediaElement.readyState === 2 && this.seekables.length > 1) {
@@ -250,21 +250,27 @@ var MSEController = function () {
       if (!this.mediaSource || !this.asourceBuffer || !this.vsourceBuffer) {
         return;
       }
+      this.removeSourceBuffer();
+      this.detachMediaElement();
+      this.asourceBuffer = null;
+      this.vsourceBuffer = null;
+      this.mediaSource = null;
+      this._lastClearTime = 0;
+      this.seekables = [];
+    }
+  }, {
+    key: 'removeSourceBuffer',
+    value: function removeSourceBuffer() {
+      this._initAppanded = false;
       this.mediaElement.pause();
       URL.revokeObjectURL(this.mediaElement.src);
       this.asourceBuffer && this.asourceBuffer.removeEventListener('error', this.onError.bind(this));
       this.vsourceBuffer && this.vsourceBuffer.removeEventListener('error', this.onError.bind(this));
       this.vsourceBuffer && this.vsourceBuffer.removeEventListener('updateend', this.checkState.bind(this));
-      if (this.mediaSource && this.mediaSource.sourceBuffers > 1) {
+      if (this.mediaSource && this.mediaSource.sourceBuffers.length > 1) {
         this.mediaSource.removeSourceBuffer(this.asourceBuffer);
         this.mediaSource.removeSourceBuffer(this.vsourceBuffer);
       }
-      this.detachMediaElement();
-      that.asourceBuffer = null;
-      that.vsourceBuffer = null;
-      that.mediaSource = null;
-      this._lastClearTime = 0;
-      that.seekables = [];
     }
   }, {
     key: 'onError',

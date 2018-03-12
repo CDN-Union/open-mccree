@@ -349,7 +349,9 @@ var FLVDemuxer = function () {
       }
 
       var info = this.mccree.loaderBuffer.shift(1)[0];
+
       chunk.data = this.mccree.loaderBuffer.shift(chunk.datasize - 1);
+
       var format = (info & 240) >>> 4;
 
       track.format = format;
@@ -382,10 +384,13 @@ var FLVDemuxer = function () {
         meta.audioSampleRate = audioSampleRate;
         meta.sampleRateIndex = audioSampleRateIndex;
         meta.refSampleDuration = refSampleDuration;
-        this._hasAudioSequence = true;
-        if (this._hasScript && (!this.mccree.media.tracks.videoTrack || this._hasVideoSequence)) {
+        if (this._hasScript && !this._hasAudioSequence && (!this.mccree.media.tracks.videoTrack || this._hasVideoSequence)) {
           this.observer.trigger('METADATA_PARSED');
+        } else if (this._hasScript && this._hasAudioSequence) {
+          this.observer.trigger('METADATA_CHANGED');
         }
+        ;
+        this._hasAudioSequence = true;
       } else {
         chunk.data = chunk.data.slice(1, chunk.data.length);
         this.observer.trigger('AUDIODATA_PARSED');
@@ -412,16 +417,36 @@ var FLVDemuxer = function () {
         chunk.avcPacketType = this.mccree.loaderBuffer.shift(1)[0];
         chunk.compositionTime = this.mccree.loaderBuffer.toInt(0, 3);
         this.mccree.loaderBuffer.shift(3);
-        chunk.data = this.mccree.loaderBuffer.shift(chunk.datasize - 5);
+        // 对七牛SDK中AVCC和AnnexB错误混编的兼容。（不影响其他端&SDK编码器及推流)
+        // TODO: 配适其他SDK混编情况
+
+        var data = this.mccree.loaderBuffer.shift(chunk.datasize - 5);
+        if (data[4] === 0 && data[5] === 0 && data[6] === 0 && data[7] === 1) {
+          var avcclength = 0;
+          for (var i = 0; i < 4; i++) {
+            avcclength = avcclength * 256 + data[i];
+          }
+          avcclength -= 4;
+          data = data.slice(4, data.length);
+          data[3] = avcclength % 256;
+          avcclength = (avcclength - data[3]) / 256;
+          data[2] = avcclength % 256;
+          avcclength = (avcclength - data[2]) / 256;
+          data[1] = avcclength % 256;
+          data[0] = (avcclength - data[1]) / 256;
+        }
+        chunk.data = data;
         // If it is AVC sequece Header.
         if (chunk.avcPacketType === 0) {
           this._avcSequenceHeaderParser(chunk.data);
           var validate = this._datasizeValidator(chunk.datasize);
           if (validate) {
-            this._hasVideoSequence = true;
-            if (this._hasScript && (!this.mccree.media.tracks.audioTrack || this._hasAudioSequence)) {
+            if (this._hasScript && !this._hasVideoSequence && (!this.mccree.media.tracks.audioTrack || this._hasAudioSequence)) {
               this.observer.trigger('METADATA_PARSED');
+            } else if (this._hasScript && this._hasVideoSequence) {
+              this.observer.trigger('METADATA_CHANGED');
             }
+            this._hasVideoSequence = true;
           }
         } else {
           if (!this._datasizeValidator(chunk.datasize)) {
